@@ -4,6 +4,33 @@
 
 #include <vector>
 
+#define MIN_SERVO_SPEED 1000
+#define MAX_SERVO_SPEED 2000
+#define MIN_FLEX_VALUE 700
+#define MAX_FLEX_VALUE 2600
+
+// Flex Sensor Functions ------------------------------------------------------------------------------------------
+
+int adcPins[5] = {34, 35, 32, 33, 36};
+int adcValues[5];
+int target_flex_values[5];
+
+void init_flex_pins(){
+  for (int i = 0; i < 5; i++) {
+    analogSetPinAttenuation(adcPins[i], ADC_ATTENDB_MAX);
+  }
+
+  // 12-bit resolution: 0–4095
+  analogReadResolution(12);
+}
+
+void read_flex_pins(){
+  for (int i = 0; i < 5; i++) {
+    adcValues[i] = analogRead(adcPins[i]);
+  }
+}
+
+
 // ESP32 NOW Definitions ------------------------------------------------------------------------------------------
 
 #define ESPNOW_WIFI_CHANNEL 6
@@ -27,8 +54,19 @@ public:
 
   // Function to print the received messages from the master
   void onReceive(const uint8_t *data, size_t len, bool broadcast) {
-    Serial.printf("Received a message from master " MACSTR " (%s)\n", MAC2STR(addr()), broadcast ? "broadcast" : "unicast");
-    Serial.printf("  Message: %s\n", (char *)data);
+
+    String csv = String((char *)data);
+    int start = 0;
+    for(int i = 0; i < 5; ++i){
+      int commaPos = csv.indexOf(',', start);
+      if (commaPos == -1) {
+        // Last value
+        target_flex_values[5] = csv.substring(start).toInt();
+        break;
+      }
+      target_flex_values[i] = csv.substring(start, commaPos).toInt();
+      start = commaPos + 1;
+    }
   }
 };
 
@@ -36,8 +74,6 @@ std::vector<ESP_NOW_Peer_Class *> masters;
 
 void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, int len, void *arg) {
   if (memcmp(info->des_addr, ESP_NOW.BROADCAST_ADDR, 6) == 0) {
-    Serial.printf("Unknown peer " MACSTR " sent a broadcast message\n", MAC2STR(info->src_addr));
-    Serial.println("Registering the peer as a master");
 
     ESP_NOW_Peer_Class *new_master = new ESP_NOW_Peer_Class(info->src_addr, ESPNOW_WIFI_CHANNEL, WIFI_IF_STA, nullptr);
     if (!new_master->add_peer()) {
@@ -46,7 +82,6 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
       return;
     }
     masters.push_back(new_master);
-    Serial.printf("Successfully registered master " MACSTR " (total masters: %zu)\n", MAC2STR(new_master->addr()), masters.size());
   } else {
     // The slave will only receive broadcast messages
     log_v("Received a unicast message from " MACSTR, MAC2STR(info->src_addr));
@@ -55,27 +90,44 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
 }
 
 
-// Servo Functions
+// Servo Functions ------------------------------------------------------------------------------------------
 
 const int SERVO_PIN[5] = {18, 19, 21, 22, 23};
 const int PWM_FREQ = 50;
-const int PWM_CHANNEL[5] = {0, 1, 2, 3, 4};     // LEDC channel
 const int PWM_RES = 16;        // 16-bit resolution
+
+void servoWriteMicroseconds(int pin, int us) {
+  // Map microseconds to duty cycle
+  // 50 Hz period = 20,000 µs
+  uint32_t duty = (uint32_t)((us / 20000.0) * ((1 << PWM_RES) - 1));
+  ledcWrite(pin, duty);
+}
 
 void init_servos(){
   for (int i = 0; i < 5; ++i){
-    ledcSetup(PWM_CHANNEL[i], PWM_FREQ, PWM_RES);
-    ledcAttachPin(SERVO_PIN[i], PWM_CHANNEL[i]);
+    ledcAttach(SERVO_PIN[i], PWM_FREQ, PWM_RES);
 
     // Start stopped
-    ledcWrite(PWM_CHANNEL[i], usToDuty(1500));
+    servoWriteMicroseconds(SERVO_PIN[i], 1500);
   }
 }
 
-void setPulse(int ch, int us) {
-  uint32_t maxDuty = 65535;  
-  uint32_t duty = (uint32_t)((float)us / 20000.0 * maxDuty);
-  ledcWrite(ch, duty);
+void set_servo_speeds(){
+  for (int i = 0; i < 5; ++i){
+    int dif = adcValues[i] - target_flex_values[i];
+    float normalized_dif = (float)dif / (float)(MAX_FLEX_VALUE - MIN_FLEX_VALUE) * (float)(MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2;
+    Serial.println(normalized_dif);
+    servoWriteMicroseconds(SERVO_PIN[i], max(MIN_SERVO_SPEED, min(MIN_SERVO_SPEED + (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2 + (int)(normalized_dif), MAX_SERVO_SPEED)));
+    // if (dif > 0){
+    //   servoWriteMicroseconds(SERVO_PIN[i], MIN_SERVO_SPEED);
+    // }
+    // else if (dif < 0){
+    //   servoWriteMicroseconds(SERVO_PIN[i], MAX_SERVO_SPEED);
+    // }
+    // else{
+    //   servoWriteMicroseconds(SERVO_PIN[i], (MAX_SERVO_SPEED + MIN_SERVO_SPEED) / 2);
+    // }
+  }
 }
 
 
@@ -91,12 +143,6 @@ void setup() {
     delay(100);
   }
 
-  Serial.println("ESP-NOW Example - Broadcast Slave");
-  Serial.println("Wi-Fi parameters:");
-  Serial.println("  Mode: STA");
-  Serial.println("  MAC Address: " + WiFi.macAddress());
-  Serial.printf("  Channel: %d\n", ESPNOW_WIFI_CHANNEL);
-
   // Initialize the ESP-NOW protocol
   if (!ESP_NOW.begin()) {
     Serial.println("Failed to initialize ESP-NOW");
@@ -105,26 +151,18 @@ void setup() {
     ESP.restart();
   }
 
-  Serial.printf("ESP-NOW version: %d, max data length: %d\n", ESP_NOW.getVersion(), ESP_NOW.getMaxDataLen());
-
   // Register the new peer callback
   ESP_NOW.onNewPeer(register_new_master, nullptr);
 
-  Serial.println("Setup complete. Waiting for a master to broadcast a message...");
+  init_servos();
+  init_flex_pins();
 }
 
 void loop() {
-  // Print debug information every 10 seconds
-  static unsigned long last_debug = 0;
-  if (millis() - last_debug > 10000) {
-    last_debug = millis();
-    Serial.printf("Registered masters: %zu\n", masters.size());
-    for (size_t i = 0; i < masters.size(); i++) {
-      if (masters[i]) {
-        Serial.printf("  Master %zu: " MACSTR "\n", i, MAC2STR(masters[i]->addr()));
-      }
-    }
-  }
+  read_flex_pins();
+  set_servo_speeds();
+
+  // servoWriteMicroseconds(SERVO_PIN[0], 1000 + 1000 * (adcValues[0] - 1200) / 1200);
 
   delay(100);
 }
