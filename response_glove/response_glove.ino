@@ -114,7 +114,7 @@ void init_servos(){
 
 void set_servo_speeds(){
   for (int i = 0; i < 5; ++i){
-    int dif = adcValues[i] - target_flex_values[i];
+    int dif = target_flex_values[i] - adcValues[i];
     float normalized_dif = (float)dif / (float)(MAX_FLEX_VALUE - MIN_FLEX_VALUE) * (float)(MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2;
     Serial.println(normalized_dif);
     servoWriteMicroseconds(SERVO_PIN[i], max(MIN_SERVO_SPEED, min(MIN_SERVO_SPEED + (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2 + (int)(normalized_dif), MAX_SERVO_SPEED)));
