@@ -11,7 +11,7 @@
 
 // Flex Sensor Functions ------------------------------------------------------------------------------------------
 
-int adcPins[5] = {34, 35, 32, 33, 36};
+int adcPins[5] = {32, 33, 34, 35, 36};
 int adcValues[5];
 int target_flex_values[5];
 
@@ -28,6 +28,16 @@ void read_flex_pins(){
   for (int i = 0; i < 5; i++) {
     adcValues[i] = analogRead(adcPins[i]);
   }
+
+  char data[64];
+  snprintf(data, sizeof(data), "%d,%d,%d,%d,%d",
+           adcValues[0],
+           adcValues[1],
+           adcValues[2],
+           adcValues[3],
+           adcValues[4]);
+
+  Serial.println(data);
 }
 
 
@@ -91,8 +101,8 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
 
 
 // Servo Functions ------------------------------------------------------------------------------------------
-
-const int SERVO_PIN[5] = {18, 19, 21, 22, 23};
+// index, thumb, ring, pinky, middle
+const int SERVO_PIN[5] = {22, 23, 19, 18, 21};
 const int PWM_FREQ = 50;
 const int PWM_RES = 16;        // 16-bit resolution
 
@@ -116,7 +126,7 @@ void set_servo_speeds(){
   for (int i = 0; i < 5; ++i){
     int dif = target_flex_values[i] - adcValues[i];
     float normalized_dif = (float)dif / (float)(MAX_FLEX_VALUE - MIN_FLEX_VALUE) * (float)(MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2;
-    Serial.println(normalized_dif);
+    // Serial.println(normalized_dif);
     servoWriteMicroseconds(SERVO_PIN[i], max(MIN_SERVO_SPEED, min(MIN_SERVO_SPEED + (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2 + (int)(normalized_dif), MAX_SERVO_SPEED)));
     // if (dif > 0){
     //   servoWriteMicroseconds(SERVO_PIN[i], MIN_SERVO_SPEED);

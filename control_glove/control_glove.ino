@@ -68,6 +68,9 @@ void send_flex_values(){
            adcValues[4]);
 
   Serial.printf("Broadcasting message: %s\n", data);
+  // snprintf(data, sizeof(data), "%d\n",
+  //          adcValues[0]);
+  // Serial.printf(data);
 
   if (!broadcast_peer.send_message((uint8_t *)data, sizeof(data))) {
     Serial.println("Failed to broadcast message");
