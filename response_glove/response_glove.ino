@@ -154,6 +154,15 @@ void init_servos(){
 }
 
 void set_servo_speeds(){
+  if (target_flex_values[0] == 0 && target_flex_values[1] == 0 && target_flex_values[2] == 0 && target_flex_values[3] == 0 && target_flex_values[4] == 0){
+    servoWriteMicroseconds(SERVO_PIN[0], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
+    servoWriteMicroseconds(SERVO_PIN[1], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
+    servoWriteMicroseconds(SERVO_PIN[2], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
+    servoWriteMicroseconds(SERVO_PIN[3], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
+    servoWriteMicroseconds(SERVO_PIN[4], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
+    return;
+  }
+
   for (int i = 0; i < 5; ++i){
     float response_percentage_bent = (float)(adcValues[i] - RESPONSE_MIN[i]) / (float)(RESPONSE_MAX[i] - RESPONSE_MIN[i]);
     float control_percentage_bent = (float)(target_flex_values[i] - CONTROL_MIN[i]) / (float)(CONTROL_MAX[i] - CONTROL_MIN[i]);
