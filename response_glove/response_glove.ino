@@ -18,7 +18,7 @@
 
 int adcPins[5] = {32, 33, 34, 35, 36};
 int adcValues[5];
-int target_flex_values[5];
+int target_flex_values[5] = {0, 0, 0, 0, 0};
 
 void init_flex_pins(){
   for (int i = 0; i < 5; i++) {
@@ -155,11 +155,17 @@ void init_servos(){
 
 void set_servo_speeds(){
   if (target_flex_values[0] == 0 && target_flex_values[1] == 0 && target_flex_values[2] == 0 && target_flex_values[3] == 0 && target_flex_values[4] == 0){
-    servoWriteMicroseconds(SERVO_PIN[0], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
-    servoWriteMicroseconds(SERVO_PIN[1], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
-    servoWriteMicroseconds(SERVO_PIN[2], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
-    servoWriteMicroseconds(SERVO_PIN[3], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
-    servoWriteMicroseconds(SERVO_PIN[4], (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2);
+    analogWrite(SERVO_PIN[0], 0);
+    analogWrite(SERVO_PIN[1], 0);
+    analogWrite(SERVO_PIN[2], 0);
+    analogWrite(SERVO_PIN[3], 0);
+    analogWrite(SERVO_PIN[4], 0);
+
+    // servoWriteMicroseconds(SERVO_PIN[0], 1500);
+    // servoWriteMicroseconds(SERVO_PIN[1], 1500);
+    // servoWriteMicroseconds(SERVO_PIN[2], 1500);
+    // servoWriteMicroseconds(SERVO_PIN[3], 1500);
+    // servoWriteMicroseconds(SERVO_PIN[4], 1500);
     return;
   }
 
@@ -167,24 +173,45 @@ void set_servo_speeds(){
     float response_percentage_bent = (float)(adcValues[i] - RESPONSE_MIN[i]) / (float)(RESPONSE_MAX[i] - RESPONSE_MIN[i]);
     float control_percentage_bent = (float)(target_flex_values[i] - CONTROL_MIN[i]) / (float)(CONTROL_MAX[i] - CONTROL_MIN[i]);
 
-    float dif = (control_percentage_bent - response_percentage_bent) * SERVO_DIRECTIONS[i];
+    float dif = (control_percentage_bent - response_percentage_bent);
     // Ensure servos don't go past straight
-    servo_cur_speeds[i] = (dif > 0 || servo_cur_positions[i] >= 0) ? (dif * SERVO_SPEED_COEFFICIENT) : 0;
+    servo_cur_speeds[i] = (dif < 0.0 || adcValues[i] > RESPONSE_MAX[i] - 50) ? dif : 0;
+    // servo_cur_speeds[i] = dif;
 
-    int us = max(MIN_SERVO_SPEED, min(MAX_SERVO_SPEED, MIN_SERVO_SPEED + (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2 + (int)(servo_cur_speeds[i])));
+    int us = max(MIN_SERVO_SPEED, min(MAX_SERVO_SPEED, MIN_SERVO_SPEED + (MAX_SERVO_SPEED - MIN_SERVO_SPEED) / 2 + (int)(servo_cur_speeds[i] * SERVO_SPEED_COEFFICIENT * SERVO_DIRECTIONS[i])));
     servoWriteMicroseconds(SERVO_PIN[i], us);
   }
+
+  // char print_data[64];
+  // snprintf(print_data, sizeof(print_data), "%.3f,%.3f,%.3f,%.3f,%.3f",
+  //         servo_cur_speeds[0],
+  //         servo_cur_speeds[1],
+  //         servo_cur_speeds[2],
+  //         servo_cur_speeds[3],
+  //         servo_cur_speeds[4]);
+
+  // Serial.println(print_data);
 }
 
-void detect_servo_positions(){
-  unsigned long now = micros();
-  float dt = (now - prev_servo_update_time) * 1e-6f;
-  prev_servo_update_time = now;
+// void detect_servo_positions(){
+//   unsigned long now = micros();
+//   float dt = ((float)(now - prev_servo_update_time)) * 1e-6f;
+//   prev_servo_update_time = now;
 
-  for (int i = 0; i < 5; ++i){
-    servo_cur_positions[i] += servo_cur_speeds[i] * dt;
-  }
-}
+//   for (int i = 0; i < 5; ++i){
+//     servo_cur_positions[i] += servo_cur_speeds[i] * dt;
+//   }
+
+//   char print_data[64];
+//   snprintf(print_data, sizeof(print_data), "%.3f,%.3f,%.3f,%.3f,%.3f",
+//           servo_cur_positions[0],
+//           servo_cur_positions[1],
+//           servo_cur_positions[2],
+//           servo_cur_positions[3],
+//           servo_cur_positions[4]);
+
+//   Serial.println(print_data);
+// }
 
 
 // Main Functions ------------------------------------------------------------------------------------------
@@ -212,12 +239,13 @@ void setup() {
 
   init_servos();
   init_flex_pins();
+
+  prev_servo_update_time = micros();
 }
 
 void loop() {
   read_flex_pins();
   set_servo_speeds();
-  detect_servo_positions();
 
   // servoWriteMicroseconds(SERVO_PIN[0], 1000 + 1000 * (adcValues[0] - 1200) / 1200);
 
