@@ -117,17 +117,24 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
 
 // Servo Functions ------------------------------------------------------------------------------------------
 // index, thumb, ring, pinky, middle
+// thumb, index, middle, ring, pinky
 
 // Control Glove ranges:
-const int CONTROL_MAX[5] = {2400, 1000, 2950, 2900, 2850};
-const int CONTROL_MIN[5] = {1000, 0, 1970, 1600, 1750};
+// const int CONTROL_MAX[5] = {2400, 1000, 2950, 2900, 2850};
+const int CONTROL_MAX[5] = {1000, 2400, 2850, 2950, 2900};
+// const int CONTROL_MIN[5] = {1000, 0, 1970, 1600, 1750};
+const int CONTROL_MIN[5] = {0, 1000, 1750, 1970, 1600};
 
 // Response Glove ranges:
-const int RESPONSE_MAX[5] = {2750, 1000, 2870, 2450, 2900};
-const int RESPONSE_MIN[5] = {1870, 0, 2100, 1450, 2150};
+// const int RESPONSE_MAX[5] = {2750, 1000, 2870, 2450, 2900};
+const int RESPONSE_MAX[5] = {1000, 2750, 2900, 2870, 2450};
+// const int RESPONSE_MIN[5] = {1870, 0, 2100, 1450, 2150};
+const int RESPONSE_MIN[5] = {0, 1870, 2150, 2100, 1450};
 
-const int READING_OFFSETS[5] = {430, 0, 200, -320, 210};
-const int SERVO_PIN[5] = {22, 23, 19, 18, 21};
+// const int READING_OFFSETS[5] = {430, 0, 200, -320, 210};
+const int READING_OFFSETS[5] = {0, 430, 210, 200, -320};
+// const int SERVO_PIN[5] = {22, 23, 19, 18, 21};
+const int SERVO_PIN[5] = {23, 22, 21, 19, 18};
 const float SERVO_DIRECTIONS[5] = {1, 1, -1, -1, -1};
 const int PWM_FREQ = 50;
 const int PWM_RES = 16;        // 16-bit resolution
@@ -154,18 +161,6 @@ void init_servos(){
 }
 
 void set_servo_speeds(){
-  // float per_bent[5];
-  // for (int i = 0; i < 5; ++i){
-  //   per_bent[i] = (float)(adcValues[i] - RESPONSE_MIN[i]) / (float)(RESPONSE_MAX[i] - RESPONSE_MIN[i]);
-  // }
-  // char print_data[64];
-  // snprintf(print_data, sizeof(print_data), "%.3f,%.3f,%.3f,%.3f",
-  //         per_bent[0],
-  //         per_bent[2],
-  //         per_bent[3],
-  //         per_bent[4]);
-
-  // Serial.println(print_data);
 
   if (target_flex_values[0] == 0 && target_flex_values[1] == 0 && target_flex_values[2] == 0 && target_flex_values[3] == 0 && target_flex_values[4] == 0){
     analogWrite(SERVO_PIN[0], 0);
@@ -226,6 +221,31 @@ void set_servo_speeds(){
 //   Serial.println(print_data);
 // }
 
+void print_to_app(){
+  int per_bent[10];
+  // Response glove
+  for (int i = 0; i < 5; ++i){
+    per_bent[i] = 100 - ((adcValues[i] * 100) - RESPONSE_MIN[i]) / (RESPONSE_MAX[i] - RESPONSE_MIN[i]);
+  }
+  // Control glove
+  for (int i = 0; i < 5; ++i){
+    per_bent[i + 5] = 100 - ((target_flex_values[i] * 100) - CONTROL_MIN[i]) / (CONTROL_MAX[i] - CONTROL_MIN[i]);
+  }
+  char print_data[64];
+  snprintf(print_data, sizeof(print_data), "%u %u %u %u %u %u %u %u %u %u",
+          per_bent[0],
+          per_bent[2],
+          per_bent[3],
+          per_bent[4],
+          per_bent[5],
+          per_bent[6],
+          per_bent[7],
+          per_bent[8],
+          per_bent[9]);
+
+  Serial.println(print_data);
+}
+
 
 // Main Functions ------------------------------------------------------------------------------------------
 
@@ -259,6 +279,8 @@ void setup() {
 void loop() {
   read_flex_pins();
   set_servo_speeds();
+
+  print_to_app();
 
   // servoWriteMicroseconds(SERVO_PIN[0], 1000 + 1000 * (adcValues[0] - 1200) / 1200);
 
