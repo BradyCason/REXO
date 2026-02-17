@@ -40,7 +40,7 @@ ESP_NOW_Broadcast_Peer broadcast_peer(ESPNOW_WIFI_CHANNEL, WIFI_IF_STA, nullptr)
 
 // Flex Sensor Functions ------------------------------------------------------------------------------------------
 
-int adcPins[5] = {34, 35, 32, 33, 36};
+int adcPins[5] = {35, 34, 36, 32, 33};
 int adcValues[5];
 
 void init_flex_pins(){

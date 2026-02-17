@@ -16,7 +16,8 @@
 
 // Flex Sensor Functions ------------------------------------------------------------------------------------------
 
-int adcPins[5] = {32, 33, 34, 35, 36};
+// int adcPins[5] = {32, 33, 34, 35, 36};
+int adcPins[5] = {33, 32, 36, 34, 35};
 int adcValues[5];
 int target_flex_values[5] = {0, 0, 0, 0, 0};
 
@@ -151,6 +152,8 @@ void servoWriteMicroseconds(int pin, int us) {
   ledcWrite(pin, duty);
 }
 
+bool servos_enabled = true;
+
 void init_servos(){
   for (int i = 0; i < 5; ++i){
     ledcAttach(SERVO_PIN[i], PWM_FREQ, PWM_RES);
@@ -162,7 +165,7 @@ void init_servos(){
 
 void set_servo_speeds(){
 
-  if (target_flex_values[0] == 0 && target_flex_values[1] == 0 && target_flex_values[2] == 0 && target_flex_values[3] == 0 && target_flex_values[4] == 0){
+  if ((servos_enabled == false) || (target_flex_values[0] == 0 && target_flex_values[1] == 0 && target_flex_values[2] == 0 && target_flex_values[3] == 0 && target_flex_values[4] == 0)){
     analogWrite(SERVO_PIN[0], 0);
     analogWrite(SERVO_PIN[1], 0);
     analogWrite(SERVO_PIN[2], 0);
@@ -225,15 +228,18 @@ void print_to_app(){
   int per_bent[10];
   // Response glove
   for (int i = 0; i < 5; ++i){
-    per_bent[i] = 100 - ((adcValues[i] * 100) - RESPONSE_MIN[i]) / (RESPONSE_MAX[i] - RESPONSE_MIN[i]);
+    per_bent[i] = 100 - ((adcValues[i] - RESPONSE_MIN[i]) * 100) / (RESPONSE_MAX[i] - RESPONSE_MIN[i]);
+    per_bent[i] = min(100, max(0, per_bent[i]));
   }
   // Control glove
   for (int i = 0; i < 5; ++i){
-    per_bent[i + 5] = 100 - ((target_flex_values[i] * 100) - CONTROL_MIN[i]) / (CONTROL_MAX[i] - CONTROL_MIN[i]);
+    per_bent[i + 5] = 100 - ((target_flex_values[i] - CONTROL_MIN[i]) * 100) / (CONTROL_MAX[i] - CONTROL_MIN[i]);
+    per_bent[i + 5] = min(100, max(0, per_bent[i + 5]));
   }
   char print_data[64];
-  snprintf(print_data, sizeof(print_data), "%u %u %u %u %u %u %u %u %u %u",
+  snprintf(print_data, sizeof(print_data), "%d %d %d %d %d %d %d %d %d %d",
           per_bent[0],
+          per_bent[1],
           per_bent[2],
           per_bent[3],
           per_bent[4],
@@ -244,6 +250,24 @@ void print_to_app(){
           per_bent[9]);
 
   Serial.println(print_data);
+}
+
+void read_commands(){
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');  // Read until newline
+    command.trim();  // Remove whitespace and \r
+    Serial.println(command);
+
+    if (command.equalsIgnoreCase("ENABLE")) {
+      servos_enabled = true;
+    }
+    else if (command.equalsIgnoreCase("DISABLE")) {
+      servos_enabled = false;
+    }
+    else {
+      Serial.println("Unknown command");
+    }
+  }
 }
 
 
@@ -281,6 +305,8 @@ void loop() {
   set_servo_speeds();
 
   print_to_app();
+
+  read_commands();
 
   // servoWriteMicroseconds(SERVO_PIN[0], 1000 + 1000 * (adcValues[0] - 1200) / 1200);
 
